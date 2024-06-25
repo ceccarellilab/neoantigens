@@ -1,0 +1,479 @@
+---
+title: "Neoantigens"
+author: "Dario Righelli"
+date: "`r Sys.Date()`"
+bibliography: references.bib  
+output: 
+    html_document:
+        code_folding: hide
+        toc: true
+        toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setting up libraries and working directory
+
+```{r}
+library(data.table)
+library(dplyr)
+library(tidyr)
+
+# setwd("~/neoantigens")
+```
+
+# Utils 
+
+```{r}
+convertmhc <- function(vec){
+    tmp <- gsub("HLA-", "", vec)
+    tmp <-  gsub(":", "", tmp, fixed=T)
+    tmp <- gsub("*", "", tmp , fixed=T)
+}
+
+rbind_datasets <- function(ds1, ds2)
+{
+    idx1 <- which(is.na(match(colnames(ds1), colnames(ds2))))
+    mc1 <- colnames(ds1)[idx1]
+    idx2 <- which(is.na(match(colnames(ds2), colnames(ds1))))
+    mc2 <- colnames(ds2)[idx2]
+    ds1[,mc2] <- NA
+    ds2[,mc1] <- NA
+    ds1 <- as.data.frame(ds1)
+    ds2 <- as.data.frame(ds2)
+    ds2 <- ds2[ , match(colnames(ds1), colnames(ds2))]
+    return(data.table(rbind(ds1, ds2)))
+}
+
+```
+
+
+# Loading data
+
+## Albert et al 2023 dataset
+
+Loading data from @albert2023deep also known as BigMHC reference dataset
+
+```{r}
+author = "Albert BA et al. 2023"
+pmid = "37829001"
+dataset="BigHMC"
+
+dsfolder <- "~/home3/neoantigens/BigMHC_Albert_etal/BigMHC Training and Evaluation Data/datasets"
+im_test <- fread(file.path(dsfolder, "im_test.csv"))
+im_train <- fread(file.path(dsfolder, "im_train.csv"))
+im_val <- fread(file.path(dsfolder, "im_val.csv"))
+iedb <- fread(file.path(dsfolder, "iedb.csv"))
+```
+
+Exploring loaded data
+
+```{r}
+print("Table of iedb$tgt")
+table(iedb$tgt)
+print("Check colnames of im_test, im_train, im_val")
+colnames(im_test)
+colnames(im_train)
+colnames(im_val)
+
+im_test_s <- subset(im_test, select=c("mhc", "pep", "tgt"))
+im_test_s$mhc <- convertmhc(im_test_s$mhc)
+im_test_s$set <- "test"  
+
+im_test_s$mhc_pep = paste0(im_test_s$mhc, "_", im_test_s$pep)
+cat("Number of duplicated in test: ", sum(duplicated(im_test_s$mhc_pep)), "\n")
+
+im_train <- subset(im_train, select=c("mhc","pep","tgt"))
+im_train$mhc <- convertmhc(im_train$mhc)
+im_train$set <- "train"
+im_train$mhc_pep = paste0(im_train$mhc,"_",im_train$pep)
+cat("Number of duplicated in train: ", sum(duplicated(im_train$mhc_pep)), "\n")
+
+cat("Number of common pep between test and train: ", length(intersect(im_test_s$mhc_pep, im_train$mhc_pep)), "\n")
+
+im_val <- subset(im_val, select=c("mhc", "pep", "tgt"))
+im_val$mhc <- convertmhc(im_val$mhc)
+im_val$set <- "val"
+im_val$mhc_pep = paste0(im_val$mhc, "_", im_val$pep)
+cat("Number of duplicated in validation: ", sum(duplicated(im_val$mhc_pep)), "\n")
+cat("Number of common pep between test and validation: ", length(intersect(im_test_s$mhc_pep, im_val$mhc_pep)), "\n")
+cat("Number of common pep between train and validation: ", length(intersect(im_train$mhc_pep, im_val$mhc_pep)), "\n")
+
+iedb$mhc <- convertmhc(iedb$mhc)
+iedb <- subset(iedb, select = c("mhc", "pep", "tgt"))
+iedb$set <- "test_iedb"
+iedb$mhc_pep <- paste0(iedb$mhc, "_", iedb$pep)
+cat("Number of common pep between train and iedb: ", length(intersect(iedb$mhc_pep, im_train$mhc_pep)), "\n")
+```
+
+Creating a unique dataframe
+
+```{r}
+PEPTIDE_IM <- rbind(im_train, im_test_s, im_val, iedb)
+PEPTIDE_IM$pmid <- pmid
+PEPTIDE_IM$author  <- author 
+PEPTIDE_IM$dataset <- dataset
+
+dim(PEPTIDE_IM)
+table(PEPTIDE_IM$tgt, PEPTIDE_IM$set)
+sum(duplicated(PEPTIDE_IM$mhc_pep))
+dim(PEPTIDE_IM)
+
+```
+
+
+## Muller et al 2023
+
+Loading data from @muller2023machine.
+
+Datasets for neo-peptides containing the feature values and immunogenicity annotations
+
+
+```{r}
+pmid=37816353
+author = "Muller M et al. 2023"
+dsfolder <- "~/home3/neoantigens/Muller_etal_2023"
+# muts <- fread(file.path(dsfolder, "Mutation_data_org.txt"))
+# cat("Number of elements of the mutation dataset: ", dim(muts))
+peps <- fread(file.path(dsfolder, "Neopep_data_org.txt"))
+colnames(peps)
+cat("Number of elements of the peptides dataset: ", dim(peps), "\n") # [1] 1787710      57
+# muts$mutation <- paste0(muts$chromosome, ":", muts$genomic_coord, muts$ref, ">", muts$alt)
+```
+
+<!-- Inspecting mutation data -->
+
+<!-- ```{r} -->
+<!-- colnames(muts) -->
+<!-- ``` -->
+
+<!-- Checking cancer type and tissue -->
+
+<!-- ```{r} -->
+<!-- # table(muts$Sample_Tissue, muts$Cancer_Type) -->
+<!-- stct <- as.data.frame(table(muts$Sample_Tissue, muts$Cancer_Type)) -->
+<!-- colnames(stct) <- c("Tissue", "Cancer", "Freq") -->
+<!-- stct <- stct[stct$Freq>0,] -->
+<!-- stct <- stct[order(stct$Tissue),] -->
+<!-- library(DT) -->
+<!-- datatable(stct) -->
+
+<!-- library(webr) -->
+<!-- PieDonut(stct, aes(Tissue, Cancer, count=Freq), title = "Mutation: Tissue - Cancer", ratioByGroup = FALSE, pieLabelSize = 3, donutLabelSize = 3) -->
+
+<!-- library(ggpubr) -->
+<!-- st <- as.data.frame(table(muts$Sample_Tissue)) -->
+<!-- colnames(st) <- c("Tissue", "Freq") -->
+<!-- ggplot(st, aes(x="", y=Freq, fill=Tissue)) + -->
+<!--   geom_bar(stat="identity", width=1, color="white") + -->
+<!--   coord_polar("y", start=0) + -->
+<!--   theme_void()  -->
+<!-- ct <- as.data.frame(table(muts$Cancer_Type)) -->
+<!-- colnames(ct) <- c("Cancer_Type", "Freq") -->
+<!-- ggplot(ct, aes(x="", y=Freq, fill=Cancer_Type)) + -->
+<!--   geom_bar(stat="identity", width=1, color="white") + -->
+<!--   coord_polar("y", start=0) + -->
+<!--   theme_void()  -->
+<!-- ``` -->
+
+
+Sample Tissue - Cancer Type table
+
+Checking cancer type and tissue
+
+```{r}
+library(ggplot2)
+# table(muts$Sample_Tissue, muts$Cancer_Type)
+stct <- as.data.frame(table(peps$Sample_Tissue, peps$Cancer_Type))
+colnames(stct) <- c("Tissue", "Cancer", "Freq")
+stct <- stct[stct$Freq>0,]
+stct <- stct[order(stct$Tissue),]
+library(DT)
+datatable(stct)
+
+library(webr)
+PieDonut(stct, aes(Tissue, Cancer, count=Freq), title = "Neopeptides: Tissue - Cancer", ratioByGroup = FALSE, pieLabelSize = 3, donutLabelSize = 3)
+
+library(ggpubr)
+st <- as.data.frame(table(peps$Sample_Tissue))
+colnames(st) <- c("Tissue", "Freq")
+ggplot(st, aes(x="", y=Freq, fill=Tissue)) +
+  geom_bar(stat="identity", width=1, color="white") +
+  coord_polar("y", start=0) +
+  theme_void() 
+ct <- as.data.frame(table(peps$Cancer_Type))
+colnames(ct) <- c("Cancer_Type", "Freq")
+ggplot(ct, aes(x="", y=Freq, fill=Cancer_Type)) +
+  geom_bar(stat="identity", width=1, color="white") +
+  coord_polar("y", start=0) +
+  theme_void() 
+```
+
+Table for Response Type is
+
+```{r}
+table(peps$response_type) 
+rt <- as.data.frame(table(peps$response_type))
+colnames(rt) <- c("Response_Type", "Freq")
+ggplot(rt, aes(x="", y=Freq, fill=Response_Type)) +
+  geom_bar(stat="identity", width=1, color="white") +
+  coord_polar("y", start=0) +
+  theme_void() 
+```
+
+Table of peptides for train and test set
+
+```{r}
+table(peps$train_test)
+rt <- as.data.frame(table(peps$train_test))
+colnames(rt) <- c("Train_Test", "Freq")
+ggplot(rt, aes(x="", y=Freq, fill=Train_Test)) +
+  geom_bar(stat="identity", width=1, color="white") +
+  coord_polar("y", start=0) +
+  theme_void() 
+
+```
+
+Removing not tested peptides 
+
+```{r}
+# removing not tested peps
+peps <- subset(peps, response_type %in% c("CD8", "negative"))
+#dim(peps) 
+#table(peps$response_type)
+```
+
+Distribution of the peptides across chromosomes
+
+```{r}
+chrs <- as.data.frame(table(peps$chromosome))
+colnames(chrs) <- c("Chromosome", "Freq")
+library(gtools)
+chrs <- chrs[mixedorder(levels(chrs$Chromosome)),]
+chrs$perc <- chrs$Freq/sum(chrs$Freq)
+chrs$labels <- paste0(round(chrs$perc*100), " %")
+chrs <- chrs[sort(chrs$Chromosome),]
+
+ggplot(chrs, aes(x="", y=Freq, fill=Chromosome)) +
+  geom_bar(stat="identity", width=1, color="white") +
+  coord_polar("y", start=0) +
+  theme_void() 
+```
+
+
+Create a new data frame with unpacked alleles
+
+```{r}
+peps1 <- peps %>%
+    separate_rows(mutant_best_alleles, sep = ",") %>%
+    mutate(response_type = ifelse(response_type == "negative"  | response_type == "negative ", 0, 1)) %>% as.data.table
+
+peps2 <- peps1 %>%
+    separate_rows(wt_best_alleles, sep = ",") %>% as.data.table
+
+mutwt <- as.data.frame(table(peps2$mutant_best_alleles, peps2$wt_best_alleles))
+colnames(mutwt) <- c("Mutant", "WT", "Freq")
+mutwt <- mutwt[mutwt$Freq>0,]
+mutwt <- mutwt[order(mutwt$Mutant),]
+library(DT)
+datatable(mutwt)
+
+columns <- c("mutant_best_alleles", "mutant_seq",  "response_type","train_test","dataset") 
+library(Biostrings)
+# aastr <- function(aalist)
+# {
+#     vapply(aalist, function(aa){
+#       AMINO_ACID_CODE[aa]
+#     }, "character")
+# }
+# aamut <- paste0(aastr(peps1$aa_wt),  peps1$protein_coord, aastr(peps1$aa_mutant))
+
+additionalcolumns <-c("Sample_Tissue", "Cancer_Type", "gene", "protein_coord", "aa_mutant", "aa_wt", "mutation_type", "mutant_seq" , "wt_seq", "pep_mut_start", "rnaseq_TPM", "GTEx_all_tissues_expression_mean", "Sample_Tissue_expression_GTEx", "TCGA_Cancer_expression")
+peps3 <- subset(peps2, select=columns)
+
+peps3$mhc_pep <- paste0(peps3$mutant_best_alleles, "_", peps3$mutant_seq)
+#colnames(tmp[,1:5]) <- colnames(PEPTIDE_IM[1:5])
+peps3$pmid = pmid
+peps3$author = author
+
+muller <- peps3 %>%
+    select(mutant_best_alleles, mutant_seq, response_type, train_test, mhc_pep, pmid, author, dataset)
+colnames(muller) <- colnames(PEPTIDE_IM)
+peps4 <- subset(peps2, select=additionalcolumns)
+muller <- cbind(muller, peps4)
+# colnames(muller)=="rnaseq_TPM"
+# table(tmp$dataset)
+```
+
+## Borch et al
+
+Loading data from @borch2024improve also known as IMPROVE
+
+```{r}
+pmid="38633261"
+author = "Borch A et al. 2024"
+dsfolder <- "~/home3/neoantigens/IMPROVE_Borch_etal_2024"
+dataImp <- fread(file.path(dsfolder, "IMPROVE_all_peptides.txt"))
+dim(dataImp)
+#[1] 17520    98
+dataImp$mhc <- convertmhc(dataImp$HLA_allele)
+# dataImp$Mut_peptide
+dataImp$set <- "train"
+dataImp$mhc_pep <- paste0(dataImp$mhc,"_",dataImp$Mut_peptide)
+table(dataImp$response)
+imp1 <- dataImp %>%
+    select(mhc,Mut_peptide,response,set,mhc_pep)
+imp1$source <- pmid
+imp1$author <- author
+imp1$dataset <- "IMPROVE"
+colnames(imp1) <- colnames(PEPTIDE_IM)
+borch <- imp1
+additionalcolumnsimp <- c("Norm_peptide", "Mut_peptide", "Gene_Symbol", "Protein_position", "HLA_type", "Expression")
+
+borch <- cbind(borch, select(dataImp, all_of(additionalcolumnsimp)))
+
+idx <- which(colnames(borch) %in% c("Norm_peptide", "Mut_peptide", "Gene_Symbol", "Protein_position", "Expression"))
+
+colnames(borch)[idx] <- c("wt_seq", "mutant_seq", "gene", "protein_coord", "rnaseq_TPM")
+## KEEPING DUPLICATES ####
+#check duplicates
+# 
+# sum(duplicated(imp1$mhc_pep))
+# #[1] 167
+# #check same tgt
+# duplicated_mhc_pep <- imp1[duplicated(imp1$mhc_pep), mhc_pep]
+# check_tgt <- imp1[mhc_pep %in% duplicated_mhc_pep, .(unique_tgt = unique(tgt)), by = mhc_pep]
+# #View(check_tgt)
+# borch <- unique(imp1, by = "mhc_pep")
+```
+
+
+# Merging datasets
+
+
+```{r}
+merged_df <- merge(muller, PEPTIDE_IM, by = "mhc_pep", suffixes=c("_Muller", "_Albert"))
+
+mupim <- rbind_datasets(muller, PEPTIDE_IM)
+
+library(UpSetR)
+all3 <- rbind_datasets(mupim, borch)
+all3$source <- ifelse(all3$dataset=="BigHMC", "viral", "cancer")
+all3$duplicated <- duplicated(all3$mhc_pep)
+idsd <- all3$mhc_pep[all3$duplicated]
+all3$duplicated[all3$mhc_pep %in% idsd] <- TRUE
+```
+
+removing redundant rows from the rbinded data frame, keeping only duplicates on
+mhc_pep column
+
+```{r}
+identical <- duplicated(all3)
+all3 <- all3[-which(identical),]
+write.csv(all3, file="neoantigens_peptides.csv", row.names = FALSE, quote=FALSE)
+```
+
+# exploring joined datasets
+
+## common MHC
+
+```{r}
+splitmhc <- split(all3[,c("mhc", "mhc_pep", "author")], all3$author)
+mhcs <- lapply(splitmhc, function(x) {x$mhc})
+fl <- fromList(mhcs)
+upset(fl, order.by=c("freq"))
+```
+
+## common MHC-Peptides
+
+```{r}
+mhcpep <- lapply(splitmhc, function(x) {x$mhc_pep})
+fl <- fromList(mhcpep)
+upset(fl, order.by=c("freq"))
+```
+
+## Peptides by dataset
+
+```{r}
+jtab <- as.data.frame(table(all3$source, all3$dataset))
+colnames(jtab) <- c("Source", "Dataset", "Freq")
+jtab <- jtab[jtab$Freq>0,]
+jtab <- jtab[order(jtab$Source),]
+library(DT)
+datatable(jtab)
+
+data <- jtab
+# Compute percentages
+data$fraction <- data$Freq / sum(data$Freq)
+
+data$perc <- round(data$fraction*100, )
+
+# Compute the cumulative percentages (top of each rectangle)
+data$ymax <- cumsum(data$fraction)
+
+# Compute the bottom of each rectangle
+data$ymin <- c(0, head(data$ymax, n=-1))
+
+# Compute label position
+data$labelPosition <- (data$ymax + data$ymin) / 2
+
+
+# Compute a good label
+data$label <- paste0(data$Dataset, ": ", data$Freq)
+# 
+# ggplot(data, aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, fill=Source)) +
+#   geom_rect() +
+#   geom_label(x=2.5, aes(y=labelPosition, label=label), size=6) +
+#   scale_fill_brewer(palette=4) +
+#   coord_polar(theta="y") +
+#   xlim(c(2, 4)) +
+#   theme_void() +
+#   theme(legend.position = "none")
+datatable(jtab)
+
+ggplot(data, aes(x="", y=Freq, fill=label)) +
+  geom_bar(stat="identity", width=1, color="white") +
+  coord_polar("y", start=0) +
+  theme_void()+ ggtitle("Peptides per dataset")
+# library(donutchart)
+# donut_chart(data, label, Freq,  centerLabel="Peptides \nper dataset", centerLabelSize=12, includePercentage = F)
+```
+
+# peptides with expression 
+
+```{r}
+# colnames(all3)
+exprcols <- c("rnaseq_TPM", "GTEx_all_tissues_expression_mean", 
+          "Sample_Tissue_expression_GTEx", "TCGA_Cancer_expression")
+exprna <- !is.na(as.data.frame(all3)[,exprcols])
+# sum(rowSums(exprna!=0))
+expna <- !exprna
+expnaor <- sum(expna[,1] | expna[,2] | expna[,3] | expna[,4])
+df <- rbind(as.data.frame(colSums(exprna)), expnaor)
+rownames(df) <- c("RNAseq", "GTEx All Tissues", "GTEx Single Tissue", "TCGA Cancer", "Unique NAs")
+df$Freq <- df$`colSums(exprna)`
+df$Expression <- paste0(rownames(df), ": ", df$Freq)
+df <- df[,-1]
+df$fraction <- df$Freq / sum(df$Freq)
+df$perc <- round(df$fraction*100)
+
+
+ggplot(df, aes(x="", y=perc, fill=Expression)) +
+  geom_bar(stat="identity", width=1, color="white") +
+  coord_polar("y", start=0) +
+  theme_void()+ ggtitle("Peptides with espression")
+# donut_chart(df, Expression, perc,  centerLabel="#Peptides \nwith expression", centerLabelSize=12, includePercentage=F)
+
+
+```
+
+
+
+
+
+
+
+
+# References
