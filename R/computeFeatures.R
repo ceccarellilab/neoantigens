@@ -245,4 +245,14 @@ pepTableb$mw <- unlist(mclapply(pepTableb$pep, Peptides::mw,
                                 mc.cores = 64)) 
 save(pepTableb,file="PEPTIDE_IM.RData")
 library(writexl)
-write_xlsx(pepTableb,"PEPTIDE_IM_20240613.xlsx")
+write_xlsx(pepTableb,"PEPTIDE_IM_20240628.xlsx")
+write.table(pepTableb, file="PEPTIDE_IM_20240628.tsv", row.names = FALSE, quote=FALSE, sep="\t")
+
+
+
+## INSTRUCTION USED FOR BIGMHC
+## from a dedicated conda environment in my home
+## for BigMHC-EL
+## python predict.py -i=../../neoantigens/neoantigens_peptides_bigMHC_input.csv -m=el -o=../../neoantigens/neopep_bigMHC_EL.prd -t=2 -p=1 -d="cpu" -j=64
+## for BigMHC- 
+## ## python predict.py -i=../../neoantigens/neoantigens_peptides_bigMHC_input.csv -m=im -o=../../neoantigens/neopep_bigMHC_EL.prd -t=2 -p=1 -d="cpu" -j=64

@@ -372,7 +372,7 @@ mhc_pep column
 ```{r}
 identical <- duplicated(all3)
 all3 <- all3[-which(identical),]
-write.csv(all3, file="neoantigens_peptides.csv", row.names = FALSE, quote=FALSE)
+write.table(all3, file="neoantigens_peptides.tsv", row.names = FALSE, quote=FALSE, sep="\t")
 ```
 
 # exploring joined datasets
@@ -472,13 +472,42 @@ ggplot(df, aes(x="", y=perc, fill=Expression)) +
 # Table of targets per dataset
 
 ```{r}
-table(all3$tgt, all3$tgt)
+table(all3$tgt, all3$author)
 table(all3$tgt, all3$dataset)
-splittgt <- split(all3[,c("mhc_pep", "tgt", "dataset", "author")], all3$author)
+```
+
+
+## Common peptides across the papers
+
+```{r}
+splittgt <- split(all3[,c("mhc", "mhc_pep", "tgt", "dataset", "author")], all3$author)
+commonpep <- intersect(splittgt$`Albert BA et al. 2023`$mhc_pep, intersect(splittgt$`Borch A et al. 2024`$mhc_pep, splittgt$`Muller M et al. 2023`$mhc_pep))
+tgtc <- lapply(splittgt, function(x){x[x$mhc_pep %in% commonpep]})
+message("Number of common peptides between the three papers: ",length(commonpep), "\nout of a total: ", dim(all3)[1], "\nof which unique: ", length(unique(all3$mhc_pep)))
+```
+
+
+### Albert (Big HMC) vs Borch (Improve)
+
+```{r}
+table(tgtc$`Albert BA et al. 2023`$tgt, tgtc$`Borch A et al. 2024`$tgt)
+```
+
+### Albert (BigHMC) vs Muller (Machine Learning...)
+
+```{r}
+table(tgtc$`Albert BA et al. 2023`$tgt, tgtc$`Muller M et al. 2023`$tgt)
+```
+
+### Muller (Machine Learning) vs Borch (Improve)
+
+```{r}
+table(tgtc$`Muller M et al. 2023`$tgt, tgtc$`Borch A et al. 2024`$tgt)
 # splitmhc <- lapply(split(all3[,c("mhc_pep")], all3$author), unlist)
 # cmmhc <- intersect(splittgt$`Borch A et al. 2024`$mhc_pep, splittgt$`Muller M et al. 2023`$mhc_pep)
 # splittgt$`Albert BA et al. 2023`)[cmmhc, "tgt"]
 ```
+
 
 
 

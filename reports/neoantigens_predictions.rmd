@@ -1,0 +1,259 @@
+---
+title: "neopeptides_predictions"
+author: "Dario Righelli"
+date: "`r Sys.Date()`"
+bibliography: references.bib  
+output: 
+    html_document:
+        code_folding: hide
+        toc: true
+        toc_float: true
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Setting up libraries and working directory
+
+```{r}
+library(data.table)
+library(dplyr)
+library(tidyr)
+library(readxl)
+# setwd("~/neoantigens")
+```
+
+
+
+```{r}
+
+neo <- read.table("../neoantigens_peptides_BigMHC_preds_07_02_2024.tsv", header=TRUE, sep="\t")
+
+# pep_bmhc_el <- read.table("../neopep_bigMHC_EL.prd",
+#                         header=TRUE,
+#                         row.names = NULL, sep=",")
+# pep_bmhc_im <- read.table("../neopep_bigMHC_IM.prd",
+#                         header=TRUE,
+#                         row.names = NULL, sep=",")
+
+# neopep <- read.table("../neoantigens_peptides_BigMHC_preds_07_02_2024.tsv", header = TRUE, sep="\t")
+
+pep_mmhc <- read_xlsx("../mergedData20240628_features.xlsx")
+pep_mmhc <- as.data.frame(pep_mmhc)
+
+```
+
+
+```{r}
+# pep_bmhc_el$mhc_pep <- paste0(pep_bmhc_el$mhc, "_", pep_bmhc_el$pep)
+# pep_bmhc_im$mhc_pep <- paste0(pep_bmhc_im$mhc, "_", pep_bmhc_im$pep)
+# head(pep_bmhc_im)
+# head(pep_bmhc_el)
+# head(pep_mmhc)
+# head(neo)
+
+neo1 <- neo[order(neo$mhc_pep),]
+# identical(neo1$mhc_pep, pep_mmhc$mhc_pep)
+neo12 <- cbind(neo1, pep_mmhc[,which(!colnames(pep_mmhc) %in% colnames(neo1))])
+# saveRDS(neo12, file="../neopeptides_BigMHC_Prime_MixMHC_pred_2024_07_09.RDS")
+# write.table(neo12, file="../neopeptides_BigMHC_Prime_MixMHC_pred_2024_07_09.tsv", row.names = FALSE, quote=FALSE, sep="\t")
+```
+
+# Explorative analysis
+
+## Gene Expression
+
+```{r}
+library(corrplot)
+library(pheatmap)
+m <- cbind(neo12$TCGA_Cancer_expression, neo12$rnaseq_TPM,
+           neo12$Sample_Tissue_expression_GTEx, 
+           neo12$GTEx_all_tissues_expression_mean)
+rownames(m) <- neo12$mhc_pep
+colnames(m) <- c("TCGA", "RNAseq",
+           "GTEx_Tissue", 
+           "GTEx_Tissues")
+mna <- m[-which(is.na(m), arr.ind = TRUE)[,1],]
+mnau <- unique(mna)
+dim(mnau)
+cr <- cor(mnau)
+corrplot(cr, method = 'number')
+pmnau <- t(scale(t(log1p(mnau)), center = TRUE, scale = FALSE))
+pheatmap(pmnau)
+```
+
+
+## PrimeScore by tgt
+
+```{r}
+library(ggplot2)
+library(ggpubr)
+t_test <- t.test(PrimeScore ~ tgt, data = neo12)
+
+# Extract the p-value
+p_value <- t_test$p.value
+ggplot(neo12, aes(x = as.factor(tgt), y = PrimeScore)) +
+    geom_boxplot() +
+    labs(x = "Target (tgt)", y = "PrimeScore", title = "Boxplot of PrimeScore by Target") +
+    theme_minimal()+
+    annotate("text", x = 1.5, y = max(neo12$PrimeScore), 
+             label = paste("p-value =", signif(p_value, digits = 7)), size = 5)
+
+```
+
+
+### Prime score distribution
+
+```{r}
+g1 <- ggplot(neo12, aes(x=PrimeScore)) + geom_histogram(binwidth = 0.05, color="black", fill="white") +theme_bw() 
+g2 <- ggplot(neo12, aes(x=PrimeScore)) + geom_histogram(aes(y=..density..), color="black", fill="white") + geom_density(alpha=.2, fill="#FF6666") +theme_bw() 
+g3 <- ggplot(neo12, aes(x=PrimeScore, color=tgt)) + geom_histogram( fill="white", alpha=0.5, position="identity")+theme_bw() 
+ggarrange(g1, g2, g3)
+
+```
+
+## BigMHC-IM - BigMHC-EL 
+
+correspondence between scores
+
+```{r}
+neo12$tgt <- as.factor(neo12$tgt)
+ggplot(neo12, aes(x=BigMHC_EL, y=BigMHC_IM, mhc_pep=mhc_pep, tgt=tgt)) + geom_abline(intercept = 0, col="grey")+ geom_point(aes(col=tgt), size=0.5) +theme_bw()
+```
+
+## BigMHC-IM
+
+### BigMHC-IM by tgt
+
+```{r}
+t_test <- t.test(BigMHC_IM ~ tgt, data = neo12)
+
+# Extract the p-value
+p_value <- t_test$p.value
+ggplot(neo12, aes(x = as.factor(tgt), y = BigMHC_IM)) +
+    geom_boxplot() +
+    labs(x = "Target (tgt)", y = "BigMHC_IM", title = "Boxplot of BigMHC_IM by Target") +
+    theme_minimal()+
+    annotate("text", x = 1.5, y = max(neo12$BigMHC_IM), 
+             label = paste("p-value =", signif(p_value, digits = 7)), size = 5)
+```
+
+### BigMHC-IM score distribution
+
+```{r}
+g1 <- ggplot(neo12, aes(x=BigMHC_IM)) + geom_histogram(binwidth = 0.05, color="black", fill="white") +theme_bw() 
+g2 <- ggplot(neo12, aes(x=BigMHC_IM)) + geom_histogram(aes(y=..density..), color="black", fill="white") + geom_density(alpha=.2, fill="#FF6666") +theme_bw() 
+g3 <- ggplot(neo12, aes(x=BigMHC_IM, color=tgt)) + geom_histogram( fill="white", alpha=0.5, position="identity")+theme_bw() 
+ggarrange(g1, g2, g3)
+
+```
+
+## BigMHC-EL
+
+### BigMHC-EL by tgt
+
+```{r}
+t_test <- t.test(BigMHC_EL ~ tgt, data = neo12)
+
+# Extract the p-value
+p_value <- t_test$p.value
+ggplot(neo12, aes(x = as.factor(tgt), y = BigMHC_EL)) +
+    geom_boxplot() +
+    labs(x = "Target (tgt)", y = "BigMHC_EL", title = "Boxplot of BigMHC_EL by Target") +
+    theme_minimal()+
+    annotate("text", x = 1.5, y = max(neo12$BigMHC_EL), 
+             label = paste("p-value =", signif(p_value, digits = 7)), size = 5)
+```
+
+
+### BigMHC-EL score distribution
+
+```{r}
+g1 <- ggplot(neo12, aes(x=BigMHC_EL)) + geom_histogram(binwidth = 0.05, color="black", fill="white") +theme_bw() 
+g2 <- ggplot(neo12, aes(x=BigMHC_EL)) + geom_histogram(aes(y=..density..), color="black", fill="white") + geom_density(alpha=.2, fill="#FF6666") +theme_bw() 
+g3 <- ggplot(neo12, aes(x=BigMHC_EL, color=tgt)) + geom_histogram( fill="white", alpha=0.5, position="identity")+theme_bw() 
+ggarrange(g1, g2, g3)
+```
+
+## MixMHC
+
+### MixMHC by tgt
+
+```{r}
+t_test <- t.test(MixMHCScore ~ tgt, data = neo12)
+
+# Extract the p-value
+p_value <- t_test$p.value
+ggplot(neo12, aes(x = as.factor(tgt), y = MixMHCScore)) +
+    geom_boxplot() +
+    labs(x = "Target (tgt)", y = "MixMHCScore", title = "Boxplot of MixMHCScore by Target") +
+    theme_minimal()+
+    annotate("text", x = 1.5, y = max(neo12$MixMHCScore), 
+             label = paste("p-value =", signif(p_value, digits = 7)), size = 5)
+```
+
+
+### MixMHC score distribution
+
+```{r}
+g1 <- ggplot(neo12, aes(x=MixMHCScore)) + geom_histogram(binwidth = 0.05, color="black", fill="white") +theme_bw() 
+g2 <- ggplot(neo12, aes(x=MixMHCScore)) + geom_histogram(aes(y=..density..), color="black", fill="white") + geom_density(alpha=.2, fill="#FF6666") +theme_bw() 
+g3 <- ggplot(neo12, aes(x=MixMHCScore, color=tgt)) + geom_histogram( fill="white", alpha=0.5, position="identity")+theme_bw() 
+ggarrange(g1, g2, g3)
+```
+
+
+## Other Features
+
+### Other features by target
+
+```{r}
+features <- colnames(neo12)[c(26:dim(neo12)[2])][-which(colnames(neo12)[c(26:dim(neo12)[2])] %in% c("BigMHC_EL", "BigMHC_IM", "PrimeScore", "MixMHCScore"))]
+
+for (f in features){
+  t_test <- t.test(neo12[[f]] ~ tgt, data = neo12)
+  
+  # Extract the p-value
+  p_value <- t_test$p.value
+  
+  p=ggplot(neo12, aes(x = as.factor(tgt), y = neo12[[f]])) +
+    geom_boxplot() +
+    labs(x = "Target (tgt)", y = f, title = paste0("Boxplot of ", f, " by Target - pval ",
+                                                   signif(p_value, digits = 4))) +
+    theme_minimal()
+    #annotate("text", x = 1.5, y = max(pepTableb$PrimeScore), 
+             #label = paste("p-value =", signif(p_value, digits = 7)), size = 5)
+  print(p)
+}
+
+```
+
+
+### Other features distribution
+
+```{r}
+
+for (f in features){
+    g1 <- ggplot(neo12, aes(x=neo12[[f]])) + geom_histogram(binwidth = 0.05, color="black", fill="white")+
+      labs(x = f, title = paste0("Histogram of ", f))+theme_bw()
+    g2 <- ggplot(neo12, aes(x=neo12[[f]])) + geom_histogram(aes(y=..density..), color="black", fill="white") + geom_density(alpha=.2, fill="#FF6666")+ labs(x = f, title = paste0("Density of ", f)) +theme_bw() 
+    print(ggarrange(g1, g2))
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
