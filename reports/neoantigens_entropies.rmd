@@ -1,0 +1,42 @@
+---
+title: "Neopeptides Exploration"
+author: "Dario Righelli"
+date: "`r Sys.Date()`"
+bibliography: references.bib  
+output: 
+    html_document:
+        code_folding: hide
+        toc: true
+        toc_float: true
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Setting up libraries and working directory
+
+```{r}
+library(data.table)
+library(dplyr)
+library(tidyr)
+library(readxl)
+# setwd("~/neoantigens")
+```
+
+
+
+```{r}
+
+neo12 <- read.table("../neopeptides_predictions_no_dups_2024_07_25.tsv", header=TRUE, sep="\t")
+h8 <- read.table("../entropies/motifEntropies_8_MS_IEDB.txt", header=TRUE, sep=" ")
+h9 <- read.table("../entropies/motifEntropies_9_MS_IEDB.txt", header=TRUE, sep=" ")
+h10 <- read.table("../entropies/motifEntropies_10_MS_IEDB.txt", header=TRUE, sep=" ")
+h11 <- read.table("../entropies/motifEntropies_11_MS_IEDB.txt", header=TRUE, sep=" ")
+
+```
+
+

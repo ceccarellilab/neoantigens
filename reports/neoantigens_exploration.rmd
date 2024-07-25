@@ -1,5 +1,5 @@
 ---
-title: "Neoantigens Predictions"
+title: "Neopeptides Exploration"
 author: "Dario Righelli"
 date: "`r Sys.Date()`"
 bibliography: references.bib  
@@ -31,36 +31,7 @@ library(readxl)
 
 ```{r}
 
-neo <- read.table("../neoantigens_peptides_BigMHC_preds_07_02_2024.tsv", header=TRUE, sep="\t")
-
-# pep_bmhc_el <- read.table("../neopep_bigMHC_EL.prd",
-#                         header=TRUE,
-#                         row.names = NULL, sep=",")
-# pep_bmhc_im <- read.table("../neopep_bigMHC_IM.prd",
-#                         header=TRUE,
-#                         row.names = NULL, sep=",")
-
-# neopep <- read.table("../neoantigens_peptides_BigMHC_preds_07_02_2024.tsv", header = TRUE, sep="\t")
-
-pep_mmhc <- read_xlsx("../mergedData20240628_features.xlsx")
-pep_mmhc <- as.data.frame(pep_mmhc)
-
-```
-
-
-```{r}
-# pep_bmhc_el$mhc_pep <- paste0(pep_bmhc_el$mhc, "_", pep_bmhc_el$pep)
-# pep_bmhc_im$mhc_pep <- paste0(pep_bmhc_im$mhc, "_", pep_bmhc_im$pep)
-# head(pep_bmhc_im)
-# head(pep_bmhc_el)
-# head(pep_mmhc)
-# head(neo)
-
-neo1 <- neo[order(neo$mhc_pep),]
-# identical(neo1$mhc_pep, pep_mmhc$mhc_pep)
-neo12 <- cbind(neo1, pep_mmhc[,which(!colnames(pep_mmhc) %in% colnames(neo1))])
-# saveRDS(neo12, file="../neopeptides_BigMHC_Prime_MixMHC_pred_2024_07_09.RDS")
-# write.table(neo12, file="../neopeptides_BigMHC_Prime_MixMHC_pred_2024_07_09.tsv", row.names = FALSE, quote=FALSE, sep="\t")
+neo12 <- read.table("../neopeptides_predictions_no_dups_2024_07_25.tsv", header=TRUE, sep="\t")
 ```
 
 # Explorative analysis
@@ -79,11 +50,34 @@ colnames(m) <- c("TCGA", "RNAseq",
            "GTEx_Tissues")
 mna <- m[-which(is.na(m), arr.ind = TRUE)[,1],]
 mnau <- unique(mna)
-dim(mnau)
 cr <- cor(mnau)
 corrplot(cr, method = 'number')
 pmnau <- t(scale(t(log1p(mnau)), center = TRUE, scale = FALSE))
-pheatmap(pmnau)
+pheatmap(pmnau, show_rownames = FALSE)
+```
+
+
+## Features
+
+```{r}
+cols <- c("PropHydroAroScore", "HydroCore", "HydroAll", "Aro", 
+          "PropAro", "CysRed", "PropSmall", "PropAcidic", 
+          "Inst", "PropBasic", "pI", "mw")
+m <- neo12[,cols]
+rownames(m) <- neo12$mhc_pep
+cr <- cor(m)
+corrplot.mixed(cr, tl.pos="lt", diag="l")
+
+cols1 <- c("PropHydroAroScore", "HydroCore", "HydroAll", "Aro", 
+          "PropAro", "CysRed", "PropSmall", "PropAcidic", 
+          "Inst", "PropBasic", "pI", "mw", "BigMHC_EL", "BigMHC_IM",
+          "PrimeScore", "Rank_EL", "Rank_BA")
+
+m1 <- neo12[,cols1]
+rownames(m1) <- neo12$mhc_pep
+cr1 <- cor(m1)
+corrplot.mixed(cr1, tl.pos="lt", diag="l")
+
 ```
 
 
@@ -212,20 +206,20 @@ ggarrange(g1, g2, g3)
 ### Other features by target
 
 ```{r}
-features <- colnames(neo12)[c(26:dim(neo12)[2])][-which(colnames(neo12)[c(26:dim(neo12)[2])] %in% c("BigMHC_EL", "BigMHC_IM", "PrimeScore", "MixMHCScore"))]
+features <- colnames(neo12)[c(26:dim(neo12)[2])][-which(colnames(neo12)[c(26:dim(neo12)[2])] %in% c("BigMHC_EL", "BigMHC_IM", "PrimeScore", "MixMHCScore", "expression_source", "expression"))]
 
 for (f in features){
   t_test <- t.test(neo12[[f]] ~ tgt, data = neo12)
-  
+
   # Extract the p-value
   p_value <- t_test$p.value
-  
+
   p=ggplot(neo12, aes(x = as.factor(tgt), y = neo12[[f]])) +
     geom_boxplot() +
     labs(x = "Target (tgt)", y = f, title = paste0("Boxplot of ", f, " by Target - pval ",
                                                    signif(p_value, digits = 4))) +
     theme_minimal()
-    #annotate("text", x = 1.5, y = max(pepTableb$PrimeScore), 
+    #annotate("text", x = 1.5, y = max(pepTableb$PrimeScore),
              #label = paste("p-value =", signif(p_value, digits = 7)), size = 5)
   print(p)
 }
@@ -236,11 +230,10 @@ for (f in features){
 ### Other features distribution
 
 ```{r}
-
 for (f in features){
     g1 <- ggplot(neo12, aes(x=neo12[[f]])) + geom_histogram(binwidth = 0.05, color="black", fill="white")+
       labs(x = f, title = paste0("Histogram of ", f))+theme_bw()
-    g2 <- ggplot(neo12, aes(x=neo12[[f]])) + geom_histogram(aes(y=..density..), color="black", fill="white") + geom_density(alpha=.2, fill="#FF6666")+ labs(x = f, title = paste0("Density of ", f)) +theme_bw() 
+    g2 <- ggplot(neo12, aes(x=neo12[[f]])) + geom_histogram(aes(y=..density..), color="black", fill="white") + geom_density(alpha=.2, fill="#FF6666")+ labs(x = f, title = paste0("Density of ", f)) +theme_bw()
     print(ggarrange(g1, g2))
 }
 ```

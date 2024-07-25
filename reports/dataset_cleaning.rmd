@@ -1,0 +1,202 @@
+---
+title: "dataset_cleaning"
+author: "Dario Righelli"
+date: "`r Sys.Date()`"
+bibliography: references.bib  
+output: 
+    html_document:
+        code_folding: hide
+        toc: true
+        toc_float: true
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Loading libraries
+
+```{r}
+
+```
+
+
+# Loading data
+
+```{r}
+neo <- read.table("../neopeptides_BigMHC_Prime_MixMHC_pred_2024_07_09.tsv", header=TRUE, sep="\t")
+```
+
+# Missing Source Finding
+
+```{r}
+
+# library(annotate)
+# res = blastSequences(p, "nr", program="blastp", as="data.frame", timeout=Inf)
+# 
+# res = blastSequences(p, "refseq_select", program="blastp", as="data.frame", timeout=Inf)
+neonage <- neo[which(is.na(neo$gene)),]
+dim(neonage)
+neonage <- neonage[isUnique(neonage$pep),]
+table(neonage$source)
+## they are all viral no need to blastp
+## 
+# # notargetpep <- unique(neo$pep[which(is.na(neo$gene))])
+# library(annotate)
+# results <- lapply(seq_along(neonage$pep), function(i)
+# {
+#     p <- notargetpep[i]
+#     len <- nchar(p)
+#     seq <- paste0(">pep", i,"\n", p)
+#     return(list(len, seq))
+#     # res = blastSequences(neo$wt_seq[1], program="blastp", timeout=Inf)
+# })
+# saveRDS(results, file="peps_no_genes.RDS")
+# results <- unlist(results)
+# length(results)
+# write.table(results[1:3000], file="notargetpep1_3000.fa", quote=FALSE, row.names = FALSE, col.names=FALSE, sep="")
+# write.table(results[3001:6000], file="notargetpep3001_6000.fa", quote=FALSE, row.names = FALSE, col.names=FALSE, sep="")
+# write.table(results[6001:length(results)], file="notargetpep6001_9619.fa", quote=FALSE, row.names = FALSE, col.names=FALSE, sep="")
+## running on blastp website
+```
+
+# Removing duplicates
+
+```{r}
+dupids <- c("mhc", "pep", "tgt", "mhc_pep")
+idx<-duplicated(neo[,which(colnames(neo) %in% dupids)])
+neonodup <- neo[!idx,]
+d1 <- neonodup[duplicated(neonodup$mhc_pep),]
+d2 <- neonodup[duplicated(neonodup$mhc_pep, fromLast=TRUE),]
+
+d1na <- apply(d1, 2, function(col){
+    sum(is.na(col))
+})
+
+d2na <- apply(d2, 2, function(col){
+    sum(is.na(col))
+})
+
+sum(d1na)
+sum(d2na)
+neonodup <- neonodup[!duplicated(neonodup$mhc_pep),]
+# 
+# sum(idx)
+# idxdup <- which(idx)
+# # idxdup1 <- idxdup-1
+# # idxdd <- sort(c(idxdup, idxdup1))
+# # neodd <- neo[idxdd,]
+# neonodup <- neo[-idxdup, ]
+# dupids <- c("mhc", "pep", "tgt", "mhc_pep")#, "rnaseq_TPM")
+# idxdupdup <- which(duplicated(neonodup[,which(colnames(neonodup) %in% dupids)]))
+## checking which one do not have expression
+# idxnoexp <- which((is.na(neo$rnaseq_TPM[idxdup]) & is.na(neo$GTEx_all_tissues_expression_mean[idxdup])))
+
+# neoidxnoexp <- idxdup[idxnoexp]
+# # neoidxexp <- idxdup[-idxnoexp]
+# neonodupnoexp <- neo[-neoidxnoexp,]
+
+# message("Found ", sum(idxdup), " duplicates!\nRemoving them...")
+
+message("We now have ", dim(neonodup)[1], " rows after removal.")
+```
+
+# Checking expression
+
+```{r}
+neonodup$expression_source <- NA
+neonodup$expression <- neonodup$rnaseq_TPM 
+neonodup$expression_source[!is.na(neonodup$expression)] <- "rnaseq_TPM"
+idxexpna <- which(is.na(neonodup$expression))
+neonodup[idxexpna,]
+message("Found ", length(which(!is.na(neonodup$TCGA_Cancer_expression[idxexpna]))), " peptides with TCGA expression and no RNA expression out of ", length(idxexpna))
+message("Source for these records are summarized in the next table")
+table(neonodup$source[idxexpna])
+
+# neonodup1 <- neonodup[is.na(neonodup$expression_source),]
+# tcgapan <- read.table("../EBPlusPlusAdjustPANCAN_IlluminaHiSeq_RNASeqV2.geneExp.tsv", sep="\t", row.names = 1, header=TRUE)
+# tcgapan[1:10, 1:10]
+# gnames <- rownames(tcgapan)
+# gnameslist <- unlist(lapply(strsplit(gnames, split="\\|"), function(g) {return(g[1])}))
+# which(tolower(neonodup1$gene) %in% tolower(gnameslist))
+table(neonodup$expression_source, useNA="always")
+```
+
+# Checking mutation
+
+```{r}
+
+# neonoseqs <- neonodup[-which(is.na(neonodup$wt_seq)),]
+# message("Loosing ", sum(is.na(neonodup$wt_seq)), " peptides without any wt/mut sequence!\nRemaining ",dim(neonoseqs)[1], " entries!")
+
+table(neonodup$mutation_type, useNA="always")
+
+# seqs <- c(neonoseqs$wt_seq[1], neonoseqs$mutant_seq[1])
+
+# write.table(neonoseqs[is.na(neonoseqs$mutation_type),], file="neonoseqs_mutation_missing.tsv", col.names=TRUE, row.names=FALSE, quote=FALSE, sep="\t")
+
+neonodup$rowindex <- seq_along(neonodup$mhc)
+neonodupnoseq <- neonodup[is.na(neonodup$mutation_type),]
+neo1 <- neonodupnoseq
+neo1$wt_seq[which(is.na(neo1$wt_seq))] <- ""
+neo1$mutant_seq[which(is.na(neo1$mutant_seq))] <- ""
+for(i in c(1:dim(neo1)[1]))
+{
+    seqs <- AAStringSet(x=c(neo1$wt_seq[i], neo1$mutant_seq[i]))
+    if(width(seqs)[1] != width(seqs)[2])
+    {
+        if(width(seqs)[1]==0)
+        {
+            wt_seq <- neo1$pep[i]
+            if( wt_seq == neo1$mutant_seq[i] )
+            {
+                # print("No Mutation")
+                # neo1$wt_seq[i] <- wt_seq
+                neo1$mutation_type[i]="Missing WT seq"
+            }
+        } else {
+            if(width(seqs)[1] > width(seqs)[2])
+            {
+                print("DELETION TO HANDLE")
+                neo1$mutation_type[i]="DELETION"
+            } else {
+                print("INSERTION TO HANDLE")
+                neo1$mutation_type[i]="INSERTION"
+            }
+        }
+    } else {
+        if(seqs[[1]]==seqs[[2]])
+        {
+            neo1$mutation_type[i]="No Mutation"
+        } else {
+            # print(i)
+            cmat <- consensusMatrix(seqs, as.prob=FALSE)
+            idx <- which(cmat==1, arr.ind=TRUE)
+            neo1$mutation_type[i]="SNV Inferred"
+            neo1$pep_mut_start[i]=idx[1,2]
+            neo1$aa_wt[i]=as.character(seqs[[1]][idx[1,2]])
+            neo1$aa_mutant[i]=as.character(seqs[[2]][idx[2,2]])
+        }
+    }
+}
+table(neo1$mutation_type, useNA="always")
+neo2 <- neo1
+neo2$mutation_type[neo2$mutation_type == "Missing WT seq"] <- NA
+neo2$mutation_type[neo2$mutation_type == "No Mutation"] <- "No"
+neo2$mutation_type[neo2$mutation_type == "SNV Inferred"] <- "SNV"
+table(neo2$mutation_type, useNA="always")
+neonodup$mutation_type[neo2$rowindex] <- neo2$mutation_type
+neonodup$pep_mut_start[neo2$rowindex] <- neo2$pep_mut_start
+neonodup$aa_wt[neo2$rowindex] <- neo2$aa_wt
+neonodup$aa_mutant[neo2$rowindex] <- neo2$aa_mutant
+
+table(neonodup$mutation_type, useNA="always")
+
+neonodup <- neonodup[,-which(colnames(neonodup) == "rowindex")]
+saveRDS(neonodup, file="../neopeptides_predictions_no_dups_2024_07_25.rds")
+write.table(neonodup, file="../neopeptides_predictions_no_dups_2024_07_25.tsv", row.names = FALSE, quote=FALSE, sep="\t")
+```
+
+
