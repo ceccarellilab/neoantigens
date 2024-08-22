@@ -238,6 +238,36 @@ for (f in features){
 }
 ```
 
+## Entropy 
+
+### Entropy by target
+
+```{r}
+peps <- readRDS("../neopeptides_predictions_no_dups_entropies_2024_09_22.rds")
+t_test <- t.test(mut_entropy ~ tgt, data = peps)
+
+  # Extract the p-value
+  p_value <- t_test$p.value
+
+  p=ggplot(peps, aes(x = as.factor(tgt), y = mut_entropy)) +
+    geom_boxplot() +
+    labs(x = "Target (tgt)", y = "Entropy", title = paste0("Boxplot of mutation entropy by Target - pval ",
+                                                   signif(p_value, digits = 4))) +
+    theme_minimal()
+  print(p)
+```
+
+### Entropy distribution
+
+```{r}
+g1 <- ggplot(peps, aes(x=mut_entropy)) + geom_histogram(binwidth = 0.05, color="black", fill="white")+
+      labs(x = "Entropy", title = paste0("Histogram of Entropy"))+theme_bw()
+  g2 <- ggplot(peps, aes(x=mut_entropy)) + geom_histogram(aes(y=..density..), color="black", fill="white") + geom_density(alpha=.2, fill="#FF6666")+ labs(x = "Entropy", title = paste0("Density of Entropy")) +theme_bw()
+    print(ggarrange(g1, g2))
+```
+
+
+
 
 
 

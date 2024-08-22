@@ -40,3 +40,110 @@ h11 <- read.table("../entropies/motifEntropies_11_MS_IEDB.txt", header=TRUE, sep
 ```
 
 
+```{r}
+
+neo12$peplen <- sapply(neo12$pep, nchar)
+neo12$idx <- seq_along(rownames(neo12))
+neo12$mut_entropy <- NA
+##
+addentropy <- function(peps, entropy, len)
+{
+  # selecting only len based peps
+  peplenu <- peps[peps$peplen==len,]
+  # peplenu$idxu <- seq_along(peplenu$mhc)
+  # filtering entropy only for existing peps
+  entropy1 <- entropy[rownames(entropy) %in% peplenu$mhc,]
+  # iterating on each mhc in entropy
+  peplenu1 <- lapply(seq_along(rownames(entropy1)), function(i)
+  {
+    mhc <- rownames(entropy1)[i] # selecting mhc
+    eni <- as.data.frame(t(entropy[i,]))
+    eni$pos <- rownames(eni)
+    colnames(eni) <- c("mut_entropy", "pos")
+    peplenu1 <- peplenu[peplenu$mhc == mhc,] # selecting mhc in peps
+    # peplenu2 <- peplenu1[is.na(peplenu1$pep_mut_start),] # saving peps without muts
+    # peplenu1 <- peplenu1[!is.na(peplenu1$pep_mut_start),] # filtering out peps without mutation
+    peplenu1$pos <- paste0("p", peplenu1$pep_mut_start) # creating map of mutation position
+    peplenu1p <- left_join(peplenu1, eni, by="pos")
+    peplenu1p <- peplenu1p[,!(colnames(peplenu1p) %in% c("mut_entropy.x", "pos"))]
+    colnames(peplenu1p)[colnames(peplenu1p)=="mut_entropy.y"] <- "mut_entropy"
+    # print(length(mutpos))
+    # iterating on each position in the entropy dataset
+    # peplenu1ij <- lapply( seq_along(colnames(entropy1)), function(j) 
+    # {
+    #   idx <- which(mutpos %in% colnames(entropy1)[j]) # selecting positions for
+    #   # print(length(idx))
+    #   if (length(idx) !=0)
+    #   {
+    #     peplenu1p <- peplenu1[idx,]
+    #     peplenu1p$mut_entropy <- entropy1[i,j]
+    #     # peplenu$mut_entropy[peplenu1$idxu] <- peplenu1$mut_entropy[peplenu1$idxu]
+    #   } else {
+    #     print(paste0("not found ", colnames(entropy1)[j]))
+    #     idx <- which(!mutpos %in% colnames(entropy1)[j])
+    #     peplenu1p <- peplenu1[idx,]
+    #   }
+    #   return(peplenu1p)
+    # })
+    # names(peplenu1ij) <- colnames(entropy)
+    # peplenu1i <- do.call(rbind, peplenu1ij)
+    # peplenui <- rbind(peplenu1i, peplenu2)
+    return(peplenu1p)
+  })
+  peps1 <- do.call(rbind, peplenu1)
+  # peps2 <- peplenu[!peplenu$mhc %in% rownames(peplenu),]
+  # peps3 <- rbind(peps1, peps2)
+  # peps <- rbind(peps3, peps[!peps$peplen==len,])
+  # peps$mut_entropy[peplenu$idx] <- peplenu$mut_entropy[peplenu$idx]
+  return(peps1)
+}
+
+peps <- neo12
+for(i in c(8:11))
+{
+    print(i)
+    if(i==8) en=h8
+    if(i==9) en=h9
+    if(i==10) en=h10
+    if(i==11) en=h11
+    # print(en)
+    peps1 <- addentropy(peps, en, i)
+    peps2 <- peps[which(!peps$idx %in% peps1$idx),]
+    peps <- rbind(peps1, peps2)
+}
+
+peps <- peps[order(peps$idx),]
+
+saveRDS(peps, file="../neopeptides_predictions_no_dups_entropies_2024_09_22.rds")
+write.table(peps, file="../neopeptides_predictions_no_dups_entropies_2024_09_22.tsv", sep="\t", quote = FALSE, row.names = FALSE)
+```
+
+
+```{r}
+peps <- readRDS("../neopeptides_predictions_no_dups_entropies_2024_09_22.rds")
+t_test <- t.test(mut_entropy ~ tgt, data = peps)
+
+  # Extract the p-value
+  p_value <- t_test$p.value
+
+  p=ggplot(peps, aes(x = as.factor(tgt), y = mut_entropy)) +
+    geom_boxplot() +
+    labs(x = "Target (tgt)", y = "Entropy", title = paste0("Boxplot of mutation entropy by Target - pval ",
+                                                   signif(p_value, digits = 4))) +
+    theme_minimal()
+  print(p)
+```
+
+
+
+```{r}
+g1 <- ggplot(peps, aes(x=mut_entropy)) + geom_histogram(binwidth = 0.05, color="black", fill="white")+
+      labs(x = "Entropy", title = paste0("Histogram of Entropy"))+theme_bw()
+  g2 <- ggplot(peps, aes(x=mut_entropy)) + geom_histogram(aes(y=..density..), color="black", fill="white") + geom_density(alpha=.2, fill="#FF6666")+ labs(x = "Entropy", title = paste0("Density of Entropy")) +theme_bw()
+    print(ggarrange(g1, g2))
+```
+
+
+
+
+
