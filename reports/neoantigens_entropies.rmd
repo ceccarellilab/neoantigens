@@ -114,8 +114,8 @@ for(i in c(8:11))
 
 peps <- peps[order(peps$idx),]
 
-saveRDS(peps, file="../neopeptides_predictions_no_dups_entropies_2024_09_22.rds")
-write.table(peps, file="../neopeptides_predictions_no_dups_entropies_2024_09_22.tsv", sep="\t", quote = FALSE, row.names = FALSE)
+saveRDS(peps, file="../neopeptides_predictions_no_dups_entropies_2024_08_22.rds")
+write.table(peps, file="../neopeptides_predictions_no_dups_entropies_2024_08_22.tsv", sep="\t", quote = FALSE, row.names = FALSE)
 ```
 
 
