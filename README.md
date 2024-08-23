@@ -2,8 +2,6 @@
 
 This repository is for the collection and analysis of neonatigen peptides.
 
-A report in HTML format of the collected peptides can be retrieved from [this link](https://github.com/ceccarellilab/neoantigens/blob/main/reports/dataset_integration.html)
+all the main code is collected in the reports
 
-The collected peptides as tsv file can be retrived from [this link](https://github.com/ceccarellilab/neoantigens/blob/main/neoantigens_peptides.tsv)
-
-The collected peptides with calculated scores as tar gzipped tsv file can be retrived from [this link](https://github.com/ceccarellilab/neoantigens/blob/main/neopeptides_predictions_no_dups_2024_07_25.tsv.tar.gz)
+The last version of the dataset is at: /home/drighelli/neoantigens/neopeptides_predictions_no_dups_entropies_2024_08_22.tsc/.rds
